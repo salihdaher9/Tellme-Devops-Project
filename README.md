@@ -78,10 +78,3 @@ Feature branches run unit tests only, with opt-in integration tests via `[run-in
 | Security | NetworkPolicies, IRSA, External Secrets Operator, cert-manager, TLS |
 | Application | Node.js, Express, MongoDB (ReplicaSet) |
 
-## Repositories
-
-| Repo | Description |
-|------|-------------|
-| **[tellme](link)** | Application code, Dockerfile, Jenkinsfile, tests |
-| **[tellme-gitops](link)** | Helm charts, ArgoCD applications, environment values |
-| **[tellme-terraform](link)** | Terraform modules for AWS infrastructure |
