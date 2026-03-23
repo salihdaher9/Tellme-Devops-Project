@@ -1,0 +1,91 @@
+# kube-prometheus-stack: all-in-one monitoring — Prometheus + Grafana + AlertManager + exporters
+# sync-wave "1": deploy AFTER CRDs (kube-prometheus-crds has wave "0")
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"  # CRDs must exist before the operator starts
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 80.13.3
+    helm:
+      values: |
+        grafana:
+          ingress:
+            enabled: false  # Accessed via port-forward or internal only
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+              searchNamespace: ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        prometheus:
+          ingress:
+            enabled: false
+          prometheusSpec:
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: gp2
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: 20Gi
+        alertmanager:
+          ingress:
+            enabled: false
+          alertmanagerSpec:
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+        prometheusOperator:
+          admissionWebhooks:
+            enabled: true   # Validates ServiceMonitor/PrometheusRule CRs before applying
+            patch:
+              enabled: true
+          tls:
+            enabled: true   # Webhook traffic encrypted with TLS
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-prometheus-stack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # ServerSideApply: needed because prometheus CRDs are very large (>256KB)
+      # and exceed the kubectl.kubernetes.io/last-applied-configuration annotation limit
+      - ServerSideApply=true

@@ -1,0 +1,27 @@
+# TellMe application — deployed as a Helm chart from the gitops repo (not a public registry)
+# This is the actual app workload (backend + MongoDB) managed via ArgoCD
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tellme
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@gitlab.com:salihdaher9/tellme-gitops.git  # Private repo, uses SSH key from ESO
+    targetRevision: master
+    path: charts/tellme  # Umbrella Helm chart (app subchart + MongoDB dependency)
+    helm:
+      valueFiles:
+        - ../../values/tellme-prod.yaml  # Production overrides (image tag, replicas, secrets, ingress)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tellme
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

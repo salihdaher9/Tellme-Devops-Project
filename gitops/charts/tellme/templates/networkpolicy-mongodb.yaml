@@ -1,0 +1,81 @@
+{{/* NetworkPolicy: Protect MongoDB from unauthorized access within the cluster
+
+     WHY TWO NETWORK POLICY FILES?
+     This file (networkpolicy-mongodb.yaml) contains:
+       1. MongoDB protection: only app pods can reach MongoDB:27017
+       2. Default deny ALL: blocks everything in the namespace by default
+
+     Because of the default-deny, we need networkpolicy-app.yaml to explicitly allow:
+       - Ingress controller → app (so external traffic can reach your app)
+       - Prometheus → app (so metrics scraping works)
+
+     Without networkpolicy-app.yaml, the default-deny below would block external traffic
+     even though your Ingress resource exists.
+
+     THE PROBLEM THIS SOLVES:
+     - By default, ANY pod in the cluster can connect to MongoDB (even from other namespaces)
+     - A compromised Grafana/Kibana/ArgoCD pod could directly access your database
+     - This creates a firewall: only app pods with specific labels can reach MongoDB */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-mongodb-allow-app-only
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  # Apply this policy to MongoDB pods (Bitnami chart uses app.kubernetes.io/name: mongodb)
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mongodb
+      app.kubernetes.io/instance: {{ .Release.Name }}
+
+  policyTypes:
+    - Ingress  # Control who can send traffic TO MongoDB
+
+  ingress:
+    # Rule 1: Allow ONLY the app pods to reach MongoDB on port 27017
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: app  # Only pods with this label
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 27017  # MongoDB default port
+
+    # Rule 2: Allow MongoDB replica set members to talk to each other (required for replication)
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mongodb
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 27017
+
+---
+{{/* NetworkPolicy: Default deny all ingress to the entire namespace
+
+     This locks down the ENTIRE tellme namespace:
+     1. Blocks all inbound traffic to ALL pods by default
+     2. Only traffic explicitly allowed in other NetworkPolicies gets through
+     3. Fail-secure principle: new pods are isolated until explicitly opened
+
+     IMPORTANT: This blocks EVERYTHING, including legitimate traffic.
+     That's why networkpolicy-app.yaml exists — to re-open the front door
+     for the Ingress controller and Prometheus. */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-default-deny-ingress
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector: {}  # Empty selector = applies to ALL pods in this namespace
+  policyTypes:
+    - Ingress
+  # No ingress rules = deny all (any traffic not explicitly allowed above is blocked)

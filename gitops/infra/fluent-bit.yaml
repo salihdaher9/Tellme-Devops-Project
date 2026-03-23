@@ -1,0 +1,182 @@
+# Fluent-Bit: lightweight log shipper — runs as DaemonSet on every node
+# Reads container logs from /var/log/containers/ and ships to Elasticsearch
+# Architecture: Fluent-Bit (collect) → Elasticsearch (store) → Kibana (visualize)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fluent-bit
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://fluent.github.io/helm-charts
+    targetRevision: 0.55.0
+    chart: fluent-bit
+    helm:
+      values: |
+        # Explicitly keep chart-managed identity + RBAC for Fluent Bit.
+        # Fluent Bit needs Kubernetes API read access to enrich logs with pod/namespace/node metadata.
+        serviceAccount:
+          create: true
+          name: fluent-bit
+        rbac:
+          create: true
+
+        config:
+          # ---- INPUTS: what logs to collect ----
+          # Each INPUT uses "tail" (like tail -f) to read container log files
+          # Tags route logs to the correct OUTPUT (like topic routing)
+          inputs: |
+            [INPUT]
+                Name tail
+                Path /var/log/containers/*_tellme_*.log
+                Tag app.*
+                multiline.parser docker, cri
+                Mem_Buf_Limit 100MB
+                Skip_Long_Lines On
+
+            [INPUT]
+                Name tail
+                Path /var/log/containers/*_tellme_*mongodb*.log,/var/log/containers/*_tellme_*mongo*.log
+                Tag mongodb.*
+                multiline.parser docker, cri
+                Mem_Buf_Limit 100MB
+                Skip_Long_Lines On
+
+            [INPUT]
+                Name tail
+                Path /var/log/containers/*ingress-nginx*controller*.log
+                Tag ingress.*
+                multiline.parser docker, cri
+                Mem_Buf_Limit 100MB
+                Skip_Long_Lines On
+
+            [INPUT]
+                Name tail
+                Path /var/log/containers/*_kube-system_*.log,/var/log/containers/*_argocd_*.log,/var/log/containers/*_logging_*.log
+                Tag k8s.*
+                multiline.parser docker, cri
+                Mem_Buf_Limit 100MB
+                Skip_Long_Lines On
+
+            [INPUT]
+                Name systemd
+                Tag host.*
+                Systemd_Filter _SYSTEMD_UNIT=kubelet.service
+                Read_From_Tail On
+
+          # ---- FILTER: enrich logs with K8s metadata ----
+          # Adds pod name, namespace, labels etc. to each log entry
+          filters: |
+            [FILTER]
+                Name                kubernetes
+                Match               *
+                Kube_Tag_Prefix     kube.var.log.containers.
+                Kube_URL            https://kubernetes.default.svc:443
+                Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+                Merge_Log           On
+                Keep_Log            Off
+                K8S-Logging.Parser  On
+                K8S-Logging.Exclude On
+
+          # ---- OUTPUTS: where to send logs ----
+          # Each output matches a tag pattern and sends to a separate ES index
+          # Separate indices = easier filtering in Kibana (e.g., only see app logs)
+          outputs: |
+            [OUTPUT]
+                Name              es
+                Match             app.*
+                Host              elasticsearch-master
+                Port              9200
+                HTTP_User         elastic
+                HTTP_Passwd       ${ES_PASSWORD}
+                tls               On
+                tls.verify        Off
+                Logstash_Format   On
+                Logstash_Prefix   logs-tellme
+                Suppress_Type_Name On
+                Retry_Limit       False
+
+            [OUTPUT]
+                Name              es
+                Match             ingress.*
+                Host              elasticsearch-master
+                Port              9200
+                HTTP_User         elastic
+                HTTP_Passwd       ${ES_PASSWORD}
+                tls               On
+                tls.verify        Off
+                Logstash_Format   On
+                Logstash_Prefix   logs-ingress
+                Suppress_Type_Name On
+                Retry_Limit       False
+
+            [OUTPUT]
+                Name              es
+                Match             mongodb.*
+                Host              elasticsearch-master
+                Port              9200
+                HTTP_User         elastic
+                HTTP_Passwd       ${ES_PASSWORD}
+                tls               On
+                tls.verify        Off
+                Logstash_Format   On
+                Logstash_Prefix   logs-mongodb
+                Suppress_Type_Name On
+                Retry_Limit       False
+
+            [OUTPUT]
+                Name              es
+                Match             k8s.*
+                Host              elasticsearch-master
+                Port              9200
+                HTTP_User         elastic
+                HTTP_Passwd       ${ES_PASSWORD}
+                tls               On
+                tls.verify        Off
+                Logstash_Format   On
+                Logstash_Prefix   logs-k8s
+                Suppress_Type_Name On
+                Retry_Limit       False
+
+            [OUTPUT]
+                Name              es
+                Match             host.*
+                Host              elasticsearch-master
+                Port              9200
+                HTTP_User         elastic
+                HTTP_Passwd       ${ES_PASSWORD}
+                tls               On
+                tls.verify        Off
+                Logstash_Format   On
+                Logstash_Prefix   logs-host
+                Suppress_Type_Name On
+                Retry_Limit       False
+
+        # ES password injected as env var — referenced by ${ES_PASSWORD} in outputs above
+        env:
+          - name: ES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: elasticsearch-master-credentials
+                key: password
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

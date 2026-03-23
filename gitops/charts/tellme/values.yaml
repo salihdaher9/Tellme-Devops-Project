@@ -1,0 +1,39 @@
+# DEFAULT values — used for local/dev. Production overrides are in values/tellme-prod.yaml
+
+mongodb:
+  enabled: true
+  architecture: replicaset  # ReplicaSet = primary + secondary + arbiter for HA and failover
+  replicaCount: 2           # 2 data nodes + 1 arbiter = quorum of 3 for automatic failover
+  arbiter:
+    enabled: true           # Arbiter votes in elections but doesn't store data (saves resources)
+  auth:
+    enabled: true
+    rootUser: "demoUser"        # Dev-only defaults — overridden by ExternalSecrets in prod
+    rootPassword: "demoPass123"
+    username: "demoUser"
+    password: "demoPass123"
+    replicaSetKey: "demoPass123"  # Shared key for replica set member authentication
+    database: "pick-for-me"
+  persistence:
+    enabled: true
+    size: "5Gi"
+  tls:
+    enabled: false
+
+namespace:
+  create: true
+  name: "tellme"
+
+# ExternalSecrets: when enabled, ESO pulls secrets from AWS Secrets Manager into K8s Secrets
+# Disabled by default (dev uses plaintext above) — enabled in prod values
+externalSecrets:
+  enabled: false
+  storeRef:
+    name: "aws-secretsmanager"
+    kind: "ClusterSecretStore"
+  app:
+    secretName: "tellme-app-secrets"      # K8s Secret name the app deployment references
+    awsSecretName: "tellme/app"           # AWS Secrets Manager key
+  mongodb:
+    secretName: "tellme-mongodb-secrets"  # K8s Secret name MongoDB chart references
+    awsSecretName: "tellme/mongodb"       # AWS Secrets Manager key

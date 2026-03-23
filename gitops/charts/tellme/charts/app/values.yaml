@@ -1,0 +1,79 @@
+# Default values for the app subchart — most are overridden by tellme-prod.yaml in production
+image:
+  repository: tellme-backend  # Local dev image — prod uses full ECR URL
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1  # Dev: single replica. Prod: 3 replicas (set in tellme-prod.yaml)
+
+service:
+  type: ClusterIP  # Internal only — external access is via Ingress, not NodePort/LoadBalancer
+  port: 3000
+
+env:
+  port: "3000"
+  nodeEnv: "production"
+  mongoUrl: ""                # Empty = template auto-generates URL from release name
+  mongoDb: "pick-for-me"
+  mongoUser: "appuser"        # Dev-only defaults
+  mongoPassword: "apppass"
+  mongoAuthSource: "admin"    # MongoDB auth database — "admin" is standard for root/admin users
+  mongoDebug: "false"
+  jwtSecret: "change-me"
+  corsOrigin: ""
+  appBaseUrl: ""
+
+# Secret injection strategy — 3 modes (see deployment.yaml template):
+# 1. existingSecret: reference a pre-created secret (used in prod with ESO)
+# 2. create: true: Helm creates the secret from env values above
+# 3. Neither: inject values as plain env vars (least secure, dev only)
+secrets:
+  create: false
+  existingSecret: ""
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# Liveness: "is the process alive?" — restarts pod if /health fails
+liveness:
+  path: "/health"
+  initialDelaySeconds: 15  # Wait 15s for app startup before first check
+  periodSeconds: 10
+
+# Readiness: "can it serve traffic?" — removes pod from Service endpoints if /ready fails
+readiness:
+  path: "/ready"
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+ingress:
+  enabled: false    # Disabled by default — enabled with TLS in prod values
+  className: ""
+  annotations: {}
+  hosts:
+    - host: ""
+      paths:
+        - path: "/"
+          pathType: Prefix
+  tls: []
+
+# ServiceMonitor: tells Prometheus to scrape this app's /metrics endpoint
+serviceMonitor:
+  enabled: false     # Enabled in prod — requires kube-prometheus-stack to be installed
+  portName: http
+  path: /metrics
+  interval: 30s
+
+# HorizontalPodAutoscaler: auto-scales pods based on CPU usage
+# When enabled, HPA controls replica count (deployment.replicas is ignored)
+# ⚠️  REQUIRES metrics-server installed in cluster (check: kubectl get deploy metrics-server -n kube-system)
+autoscaling:
+  enabled: false  # Off by default
+  minReplicas: 3  # Minimum pods
+  maxReplicas: 10 # Maximum pods
+  targetCPUUtilizationPercentage: 70  # Scale up when avg CPU > 70%

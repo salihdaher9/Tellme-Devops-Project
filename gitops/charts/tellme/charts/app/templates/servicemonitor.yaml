@@ -1,0 +1,22 @@
+{{/* ServiceMonitor: tells Prometheus to scrape this app's /metrics endpoint
+     The "release: kube-prometheus-stack" label is required — Prometheus only watches
+     ServiceMonitors with this label (configured in the kube-prometheus-stack Helm values) */}}
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "app.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    release: kube-prometheus-stack  # Must match Prometheus's serviceMonitorSelector
+spec:
+  selector:
+    matchLabels:  # Finds the Service to scrape (must match the Service's labels)
+      app.kubernetes.io/name: {{ include "app.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - port: {{ .Values.serviceMonitor.portName }}   # Named port "http" from the Service
+      path: {{ .Values.serviceMonitor.path }}        # /metrics endpoint exposed by the app
+      interval: {{ .Values.serviceMonitor.interval }} # Scrape every 30s
+{{- end }}

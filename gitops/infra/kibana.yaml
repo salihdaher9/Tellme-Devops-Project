@@ -1,0 +1,44 @@
+# Kibana: web UI for searching/visualizing logs stored in Elasticsearch
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kibana
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://helm.elastic.co
+    targetRevision: 8.5.1
+    chart: kibana
+    helm:
+      parameters:
+        # Points to the ES service inside the cluster (not external URL)
+        - name: elasticsearchHosts
+          value: "https://elasticsearch-master:9200"
+        - name: resources.requests.cpu
+          value: "100m"
+        - name: resources.requests.memory
+          value: "512Mi"
+        - name: resources.limits.cpu
+          value: "500m"
+        - name: resources.limits.memory
+          value: "1Gi"
+        - name: ingress.enabled
+          value: "true"
+        - name: ingress.className
+          value: "nginx"           # Routes through the NGINX ingress controller
+        - name: "ingress.hosts[0].host"
+          value: "kibana-3-109-16-247.sslip.io"  # sslip.io: free wildcard DNS that maps to the IP in the hostname
+        - name: "ingress.hosts[0].paths[0].path"
+          value: "/"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

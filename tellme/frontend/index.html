@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pick for Me</title>
+    <link rel="stylesheet" href="./css/main.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand" aria-label="Pick for Me">
+        <svg class="brand-mark" viewBox="0 0 64 64" role="img" aria-hidden="true">
+          <defs>
+            <linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#0b1f3a"/>
+              <stop offset="1" stop-color="#1f3b66"/>
+            </linearGradient>
+          </defs>
+          <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#brand-g)"/>
+          <path d="M20 42V22h10c6 0 10 3 10 8 0 4-3 7-8 8l9 4v2h-7l-9-5h-1v5h-4zm4-9h6c3 0 5-1 5-3 0-2-2-3-5-3h-6v6z" fill="#e9f2ff"/>
+        </svg>
+        <span class="sr-only">Pick for Me</span>
+      </div>
+      <div class="tabs-wrapper">
+        <nav class="tabs" aria-label="Primary">
+          <button class="tab is-active" data-view="feed">Feed</button>
+          <button class="tab" data-view="logs">Logs</button>
+          <button class="tab" data-view="following">Following</button>
+          <button class="tab" data-view="followers">Followers</button>
+        </nav>
+      </div>
+      <div class="user-actions">
+        <div id="user-chip" class="user-chip"></div>
+        <button id="delete-account" class="delete-account is-hidden" type="button">Delete Account</button>
+        <button id="signout" class="signout is-hidden" type="button">Sign Out</button>
+      </div>
+    </header>
+    <main id="app" class="app-main">
+      <div id="view-root"></div>
+    </main>
+    <script src="./config.js"></script>
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>

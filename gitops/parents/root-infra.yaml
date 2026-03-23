@@ -1,0 +1,24 @@
+# Parent app for all infrastructure components (cert-manager, nginx, monitoring, logging)
+# sync-wave "0" = deploy infra BEFORE apps (root-app has wave "1")
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-infra
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"  # Lower number = deployed first
+spec:
+  project: default
+  source:
+    repoURL: git@gitlab.com:salihdaher9/tellme-gitops.git
+    targetRevision: master
+    path: infra  # Each YAML here becomes a child ArgoCD Application
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,54 @@
+{{/* HorizontalPodAutoscaler: Auto-scales pods based on CPU usage
+
+     ⚠️  PREREQUISITE: metrics-server MUST be installed in the cluster
+     HPA cannot read CPU metrics without metrics-server.
+
+     To check if installed:
+       kubectl get deployment metrics-server -n kube-system
+
+     To install if missing:
+       kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+     To verify it works:
+       kubectl top pods -n tellme
+       (should show CPU/memory usage, not "Metrics API not available")
+
+     How it works:
+     - Checks CPU every 15 seconds
+     - Scales up when average CPU > target (adds pods)
+     - Scales down when average CPU < target (removes pods)
+     - Stays within min/max bounds
+
+     Example: 3 pods at 85% CPU, target is 70%
+     → HPA calculates: 3 × (85/70) = 4 pods → adds 1 pod
+
+     Only created when autoscaling.enabled: true
+*/}}
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "app.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  # Which deployment to scale
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "app.fullname" . }}
+
+  # Min and max pod count
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+
+  # Scale based on CPU usage
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

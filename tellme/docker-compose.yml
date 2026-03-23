@@ -1,0 +1,125 @@
+# Local dev + CI/CD test environment
+# All env vars come from .env file (or .env.test in Jenkins pipeline)
+services:
+  # Node.js backend — serves API on port 3000
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: ${PORT}
+      NODE_ENV: ${NODE_ENV}
+      MONGO_URL: ${MONGO_URL}
+      MONGO_DB: ${MONGO_DB}
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_AUTH_SOURCE: ${MONGO_AUTH_SOURCE}
+      MONGO_DEBUG: ${MONGO_DEBUG}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      APP_BASE_URL: ${APP_BASE_URL}
+    expose:
+      - "3000"  # expose (not ports) = only accessible within Docker networks, not from host
+    depends_on:
+      db:
+        condition: service_healthy  # Wait for MongoDB healthcheck before starting
+    networks:
+      - frontend  # Talks to nginx
+      - backend   # Talks to MongoDB
+    volumes:
+      - frontend_static:/app/frontend  # Share static files with nginx
+
+  # MongoDB — database
+  db:
+    image: mongo:8.0.17
+    container_name: mongo_db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
+    volumes:
+      - mongo_data:/data/db  # Named volume persists data across container restarts
+    networks:
+      - backend  # Only accessible from backend network (app + seed), NOT from nginx/tests
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "mongodb://localhost:27017", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # One-shot container to populate initial data (movies, etc.)
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed
+    environment:
+      MONGO_URL: ${MONGO_URL}
+      MONGO_DB: ${MONGO_DB}
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_AUTH_SOURCE: ${MONGO_AUTH_SOURCE}
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - seed  # Only runs when explicitly called: docker compose --profile seed up
+    networks:
+      - backend
+    restart: "no"  # Run once and exit
+
+  # Nginx reverse proxy — serves frontend + proxies /api/ to the backend
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+    # Wait for app /health to be ready before starting nginx (avoids 502 errors)
+    command: ["sh", "-c", "until wget -qO- http://app:3000/health >/dev/null 2>&1; do sleep 1; done; nginx -g 'daemon off;'"]
+    ports:
+      - "8081:80"  # Exposed to host — the only entry point for external traffic
+    networks:
+      - frontend  # Can reach app, but NOT db directly (network isolation)
+    volumes:
+      - frontend_static:/usr/share/nginx/html:ro  # Serves static frontend files read-only
+
+  # Smoke tests — basic health + auth + endpoint checks
+  smoke-tests:
+    build:
+      context: ./smoke-tests
+      dockerfile: Dockerfile
+    depends_on:
+      nginx:
+        condition: service_started
+    profiles:
+      - tests  # Only runs when explicitly called or when the tests profile is enabled
+    networks:
+      - frontend  # Tests go through nginx, like a real user would
+    restart: "no"
+
+  # E2E tests — full user journey (register, login, log movie, add friend, get recommendations)
+  e2e-tests:
+    build:
+      context: ./e2e-tests
+      dockerfile: Dockerfile
+    depends_on:
+      nginx:
+        condition: service_started
+    profiles:
+      - tests  # Only runs when explicitly called or when the tests profile is enabled
+    networks:
+      - frontend
+    restart: "no"
+
+volumes:
+  mongo_data:       # Persists MongoDB data across restarts
+  frontend_static:  # Shared volume: app writes frontend files, nginx reads them
+
+# Two-network architecture: isolates DB from direct test/nginx access
+networks:
+  frontend:  # nginx ↔ app ↔ tests
+  backend:   # app ↔ db ↔ seed

@@ -1,0 +1,16 @@
+[
+  { "title": "Arrival", "year": 2016, "genre": "Sci-Fi", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/d/df/Arrival%2C_Movie_Poster.jpg" },
+  { "title": "Whiplash", "year": 2014, "genre": "Drama", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/0/01/Whiplash_poster.jpg" },
+  { "title": "La La Land", "year": 2016, "genre": "Drama", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/thumb/a/ab/La_La_Land_%28film%29.png/250px-La_La_Land_%28film%29.png" },
+  { "title": "Dune", "year": 2021, "genre": "Sci-Fi", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/thumb/8/8e/Dune_%282021_film%29.jpg/250px-Dune_%282021_film%29.jpg" },
+  { "title": "Her", "year": 2013, "genre": "Romance", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/4/44/Her2013Poster.jpg" },
+  { "title": "Blade Runner 2049", "year": 2017, "genre": "Sci-Fi", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/9/9b/Blade_Runner_2049_poster.png" },
+  { "title": "Inception", "year": 2010, "genre": "Sci-Fi", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/2/2e/Inception_%282010%29_theatrical_poster.jpg" },
+  { "title": "Interstellar", "year": 2014, "genre": "Sci-Fi", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/b/bc/Interstellar_film_poster.jpg" },
+  { "title": "The Social Network", "year": 2010, "genre": "Drama", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/thumb/8/8c/The_Social_Network_film_poster.png/250px-The_Social_Network_film_poster.png" },
+  { "title": "The Dark Knight", "year": 2008, "genre": "Action", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/thumb/1/1c/The_Dark_Knight_%282008_film%29.jpg/250px-The_Dark_Knight_%282008_film%29.jpg" },
+  { "title": "The Matrix", "year": 1999, "genre": "Sci-Fi", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/thumb/d/db/The_Matrix.png/250px-The_Matrix.png" },
+  { "title": "Get Out", "year": 2017, "genre": "Horror", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a3/Get_Out_poster.png/250px-Get_Out_poster.png" },
+  { "title": "Mad Max: Fury Road", "year": 2015, "genre": "Action", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/6/6e/Mad_Max_Fury_Road.jpg" },
+  { "title": "Parasite", "year": 2019, "genre": "Thriller", "posterUrl": "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Parasite_%282019_film%29.png/250px-Parasite_%282019_film%29.png" }
+]

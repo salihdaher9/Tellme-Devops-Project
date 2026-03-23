@@ -1,0 +1,23 @@
+# Root of the App-of-Apps pattern — the single entry point ArgoCD watches
+# This app points to parents/ which contains root-infra and root-app
+# ArgoCD recursively discovers and deploys everything from this one Application
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@gitlab.com:salihdaher9/tellme-gitops.git
+    targetRevision: master
+    path: parents  # Contains root-infra.yaml and root-app.yaml
+  destination:
+    server: https://kubernetes.default.svc  # Deploy to the same cluster
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true      # Delete K8s resources that are removed from git
+      selfHeal: true   # Revert manual kubectl changes to match git state

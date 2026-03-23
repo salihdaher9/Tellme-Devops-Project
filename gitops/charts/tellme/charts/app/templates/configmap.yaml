@@ -1,0 +1,19 @@
+{{/* ConfigMap for non-sensitive app configuration.
+     Keep credentials/tokens in Secrets, not ConfigMaps. */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "app.fullname" . }}-config
+  labels:
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  PORT: "{{ .Values.env.port }}"
+  NODE_ENV: "{{ .Values.env.nodeEnv }}"
+  # If mongoUrl not set, auto-generate from release name (convention: <release>-mongodb)
+  MONGO_URL: "{{ default (printf "mongodb://%s-mongodb:27017" .Release.Name) .Values.env.mongoUrl }}"
+  MONGO_DB: "{{ .Values.env.mongoDb }}"
+  MONGO_AUTH_SOURCE: "{{ .Values.env.mongoAuthSource }}"
+  MONGO_DEBUG: "{{ .Values.env.mongoDebug }}"
+  CORS_ORIGIN: "{{ .Values.env.corsOrigin }}"
+  APP_BASE_URL: "{{ .Values.env.appBaseUrl }}"

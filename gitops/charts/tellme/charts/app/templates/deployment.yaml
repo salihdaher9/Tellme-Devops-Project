@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.fullname" . }}
+  annotations:
+    # App starts after ExternalSecret resources are applied.
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  # Static replica count — only used when HPA is disabled
+  # When HPA is enabled, it takes full control of this field and ignores this value
+  replicas: {{ .Values.replicaCount | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:  # Must match template labels — K8s uses this to find pods owned by this Deployment
+      app.kubernetes.io/name: {{ include "app.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "app.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ include "app.fullname" . }}-sa
+      automountServiceAccountToken: false
+      # Anti-affinity: spread replicas across nodes so a single node failure doesn't take all pods down
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ include "app.name" . }}
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          envFrom:
+            # Non-sensitive settings come from ConfigMap.
+            - configMapRef:
+                name: {{ include "app.fullname" . }}-config
+          env:
+            {{/* --- Secret injection: 3 strategies for sensitive values --- */}}
+            {{- if .Values.secrets.existingSecret }}
+            {{/* Strategy 1: Use a pre-existing K8s Secret (e.g., created by ExternalSecrets in prod) */}}
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: MONGO_USER
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: MONGO_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: JWT_SECRET
+            {{- else if .Values.secrets.create }}
+            {{/* Strategy 2: Helm creates the Secret from values (see secret.yaml template) */}}
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "app.fullname" . }}-secrets
+                  key: MONGO_USER
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "app.fullname" . }}-secrets
+                  key: MONGO_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "app.fullname" . }}-secrets
+                  key: JWT_SECRET
+            {{- else }}
+            {{/* Strategy 3: Plain env vars from values (dev only — NOT for production) */}}
+            - name: MONGO_USER
+              value: "{{ .Values.env.mongoUser }}"
+            - name: MONGO_PASSWORD
+              value: "{{ .Values.env.mongoPassword }}"
+            - name: JWT_SECRET
+              value: "{{ .Values.env.jwtSecret }}"
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # Liveness probe: K8s restarts the container if this fails (app is dead/hung)
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.liveness.path }}
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: {{ .Values.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.liveness.periodSeconds }}
+          # Readiness probe: K8s removes pod from Service endpoints if this fails (app not ready)
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readiness.path }}
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: {{ .Values.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readiness.periodSeconds }}

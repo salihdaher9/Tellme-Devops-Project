@@ -1,0 +1,13 @@
+apiVersion: v2
+name: tellme
+description: TellMe app (umbrella chart)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+# Umbrella chart pattern: this chart wraps the app subchart (charts/app/)
+# and pulls MongoDB as an external dependency from Bitnami
+# Benefit: single "helm install" deploys both the app AND its database
+dependencies:
+  - name: mongodb
+    version: "18.1.20"
+    repository: https://charts.bitnami.com/bitnami  # Bitnami maintains production-grade MongoDB chart

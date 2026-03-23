@@ -1,0 +1,27 @@
+# cert-manager: automates TLS certificate provisioning from Let's Encrypt
+# installCRDs: true ensures Certificate, Issuer, ClusterIssuer CRDs are installed
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io  # Jetstack (now part of Venafi) maintains cert-manager
+    chart: cert-manager
+    targetRevision: v1.16.2
+    helm:
+      values: |
+        installCRDs: true  # Without CRDs, Certificate/Issuer resources won't work
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true  # Auto-create the cert-manager namespace

@@ -1,0 +1,19 @@
+# ClusterIP Service: internal load balancer — distributes traffic across pod replicas
+# Ingress routes external traffic → this Service → pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "app.fullname" . }} ##ingress points to this Service by name, so it must match
+  labels:
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.service.type }}  # ClusterIP = internal only, no external exposure
+  ports:
+    - port: {{ .Values.service.port }}        # Port the Service listens on
+      targetPort: {{ .Values.service.port }}  # Port on the pod container
+      protocol: TCP
+      name: http  # Named port — referenced by ServiceMonitor and Ingress
+  selector:  # Routes traffic to pods matching these labels
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}

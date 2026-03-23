@@ -1,0 +1,41 @@
+# RBAC wiring in this chart:
+# 1) Deployment uses ServiceAccount "<release>-tellme-sa" (see serviceaccount.yaml + deployment.yaml).
+# 2) RoleBinding binds that ServiceAccount to the Role below.
+# 3) This Role has an empty rules list, so it grants no Kubernetes API permissions.
+#    This is effectively explicit "no-access" RBAC.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  # Role name that will be referenced by roleRef in RoleBinding.
+  name: {{ include "app.fullname" . }}-no-access
+  # Namespace-scoped: Roles and RoleBindings only apply within one namespace.
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+# rules = permission statements.
+# Empty list means this Role allows nothing (no verbs on no resources).
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  # Binding object that connects a subject (ServiceAccount) to a Role.
+  name: {{ include "app.fullname" . }}-no-access
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+subjects:
+  # subject = who gets permissions
+  - kind: ServiceAccount
+    # Must match the ServiceAccount created in serviceaccount.yaml
+    name: {{ include "app.fullname" . }}-sa
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  # roleRef = which permission set to attach to the subject
+  apiGroup: rbac.authorization.k8s.io
+  # kind can be Role (namespace) or ClusterRole (cluster-wide).
+  kind: Role
+  # Must match Role metadata.name above.
+  name: {{ include "app.fullname" . }}-no-access

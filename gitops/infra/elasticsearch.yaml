@@ -1,0 +1,41 @@
+# Elasticsearch: log storage backend — Fluent-Bit ships logs here, Kibana queries from here
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elasticsearch
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://helm.elastic.co
+    targetRevision: 8.5.1
+    chart: elasticsearch
+    helm:
+      parameters:
+        - name: replicas
+          value: "1"              # Single node — cost optimization, not for production HA
+        - name: minimumMasterNodes
+          value: "1"              # Must be <= replicas to avoid split-brain with single node
+        - name: resources.requests.cpu
+          value: "250m"
+        - name: resources.requests.memory
+          value: "1Gi"
+        - name: resources.limits.memory
+          value: "1Gi"
+        - name: esJavaOpts
+          value: "-Xmx512m -Xms512m"  # JVM heap = half of memory limit (ES best practice)
+        - name: volumeClaimTemplate.resources.requests.storage
+          value: "10Gi"           # Persistent volume for log data — survives pod restarts
+        - name: volumeClaimTemplate.storageClassName
+          value: "gp2"            # AWS EBS gp2 volume — provisioned by the EBS CSI driver
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

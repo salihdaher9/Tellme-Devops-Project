@@ -1,0 +1,91 @@
+# ============================================================================
+# PRODUCTION VALUES — overrides the defaults in charts/tellme/values.yaml
+# ============================================================================
+
+app:
+  image:
+    repository: "695547473633.dkr.ecr.ap-south-1.amazonaws.com/tellme"  # Private ECR registry
+    tag: v1.0.28
+    pullPolicy: IfNotPresent
+
+  replicaCount: 3  # Fixed 3 replicas
+
+  # HPA: auto-scaling disabled (using fixed replicaCount instead)
+  # To enable: set enabled: true, comment out replicaCount above
+  autoscaling:
+    enabled: false
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  env:
+    mongoUser: "from-secret"      # Placeholder — actual value injected from K8s Secret by ESO
+    mongoPassword: "from-secret"
+    jwtSecret: "from-secret"
+    mongoUrl: "mongodb://tellme-mongodb-headless:27017"  # Headless service for replica set discovery
+    mongoAuthSource: "admin"
+
+  secrets:
+    create: false                          # Don't create secret via Helm
+    existingSecret: "tellme-app-secrets"   # Use the secret created by ExternalSecrets Operator
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      # This annotation tells cert-manager to use the "letsencrypt-prod" ClusterIssuer to provision TLS certs for this Ingress.
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: "salihtellme.duckdns.org"  # Free dynamic DNS — points to the NLB IP
+        paths:
+          - path: "/"
+            pathType: Prefix
+    tls:
+      - hosts:
+          - "salihtellme.duckdns.org"
+        secretName: "tellme-tls"  # cert-manager stores the TLS cert/key in this K8s Secret
+
+  serviceMonitor:
+    enabled: true  # Prometheus scrapes /metrics from the app
+
+mongodb:
+  enabled: true
+  commonAnnotations:
+    # Order MongoDB resources after ExternalSecret manifests.
+    argocd.argoproj.io/sync-wave: "1"
+  architecture: replicaset
+  replicaCount: 2
+  arbiter:
+    enabled: true
+  auth:
+    enabled: true
+    rootUser: "root"
+    rootPassword: "from-secret"
+    username: "demoUser"
+    password: "from-secret"
+    replicaSetKey: "from-secret"
+    database: "pick-for-me"
+    existingSecret: "tellme-mongodb-secrets"  # ESO creates this from AWS Secrets Manager
+  persistence:
+    enabled: true
+    size: "5Gi"
+    storageClass: "gp2"  # AWS EBS gp2 — provisioned by EBS CSI driver
+  tls:
+    enabled: false
+
+namespace:
+  create: true
+  name: "tellme"
+
+# ExternalSecrets: enabled in prod — pulls real credentials from AWS Secrets Manager
+externalSecrets:
+  enabled: true
+  storeRef:
+    name: "aws-secretsmanager"          # References the ClusterSecretStore created by Terraform
+    kind: "ClusterSecretStore"
+  app:
+    secretName: "tellme-app-secrets"     # K8s Secret consumed by the app deployment
+    awsSecretName: "tellme/app"          # Key in AWS Secrets Manager
+  mongodb:
+    secretName: "tellme-mongodb-secrets" # K8s Secret consumed by the MongoDB chart
+    awsSecretName: "tellme/mongodb"      # Key in AWS Secrets Manager

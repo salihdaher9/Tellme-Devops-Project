@@ -1,0 +1,45 @@
+# CRD-only install: installs ServiceMonitor, PrometheusRule, etc. CRDs BEFORE the operator
+# Why separate? The operator creates a webhook that validates CRDs — if CRDs don't exist yet,
+# the operator pods crash-loop. Splitting into two apps (CRDs → operator) avoids this chicken-and-egg.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-crds
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"  # Deploy CRDs first (before the stack at wave "1")
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 80.13.3
+    helm:
+      # Same chart, but disable everything except CRDs
+      values: |
+        crds:
+          enabled: true
+        prometheusOperator:
+          enabled: false
+        grafana:
+          enabled: false
+        alertmanager:
+          enabled: false
+        prometheus:
+          enabled: false
+        kubeStateMetrics:
+          enabled: false
+        nodeExporter:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-prometheus-stack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true  # Required for large CRD manifests

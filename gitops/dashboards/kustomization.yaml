@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kube-prometheus-stack
+
+configMapGenerator:
+  - name: grafana-dashboard-infra-k8s-ingress
+    files:
+      - infra-k8s-ingress.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+
+  - name: grafana-dashboard-app-tellme
+    files:
+      - app-tellme.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+
+generatorOptions:
+  disableNameSuffixHash: true

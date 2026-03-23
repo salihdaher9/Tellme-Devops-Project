@@ -1,0 +1,53 @@
+{{/* NetworkPolicy: Allow ingress controller to reach the app pods
+
+     WHY THIS FILE EXISTS:
+     The networkpolicy-mongodb.yaml file contains a "default deny ALL" policy that blocks
+     EVERYTHING in the tellme namespace — including legitimate traffic.
+
+     This file RE-OPENS the necessary doors:
+       ✓ Allow ingress-nginx namespace → app:3000 (so external traffic reaches your app)
+       ✓ Allow monitoring namespace → app:3000 (so Prometheus can scrape /metrics)
+
+     WITHOUT THIS FILE:
+     - Your Ingress resource would exist, but traffic would be blocked by the default-deny
+     - External users would get connection timeouts
+     - Prometheus metrics scraping would fail
+
+     THE FLOW:
+     Internet → NLB → NGINX Ingress Controller → (THIS POLICY ALLOWS) → app pods */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-app-allow-ingress
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  # Apply this policy to app pods
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: app
+      app.kubernetes.io/instance: {{ .Release.Name }}
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    # Rule 1: Allow NGINX Ingress Controller to reach app on port 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx  # NGINX Ingress Controller namespace
+      ports:
+        - protocol: TCP
+          port: 3000
+
+    # Rule 2: Allow Prometheus to scrape /metrics endpoint (if serviceMonitor is enabled)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-prometheus-stack  # Prometheus namespace
+      ports:
+        - protocol: TCP
+          port: 3000
